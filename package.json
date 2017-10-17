@@ -1,0 +1,12 @@
+{
+  "name": "stencil-transform-angularjs",
+  "scripts": {
+    "build": "node index.js"
+  },
+  "devDependencies": {
+    "typescript": "^2.5.3"
+  },
+  "dependencies": {
+    "dts-parser": "^0.1.0"
+  }
+}
