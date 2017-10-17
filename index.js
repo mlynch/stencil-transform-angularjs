@@ -23,7 +23,7 @@ const generateAngularComponent = (classNode) => {
   // Convert MyComponent into my-component
   const classNameParts = className.match(/[A-Z][a-z]+/g)
   const componentName = classNameParts.map(x => x.toLowerCase()).join('-');
-  const angularComponentName = commandArgs.angularComponentPrefix + className.substr(1);
+  const angularComponentName = commandArgs.angularComponentPrefix + className.slice();
 
   const props = [];
   const events = [];
@@ -65,8 +65,7 @@ ${events.map(p => `    '${p.name.getText()}': '&',`).join('\n')}
     // from Angular bindings changes
     this.$onChanges = function(c) {
       for(let i in c) {
-        console.log(i, c);
-        wc[i] = c[i].currentValue;
+        e[0][i] = c[i].currentValue;
       }
     }
   }
