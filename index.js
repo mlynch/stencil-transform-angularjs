@@ -4,21 +4,21 @@ var ts = require('typescript');
 
 //console.log(ts.SyntaxKind);
 
-if(process.argv.length < 5) {
-  console.error('Usage: npm run typeFile angularModuleName angularComponentPrefix');
+if(process.argv.length < 4) {
+  console.error('Usage: npm run typeFile angularModuleName outputFilename');
   process.exit(1);
 }
 
 const commandArgs = {
   typeFile: process.argv[2],
   angularModuleName: process.argv[3],
-  angularComponentPrefix: process.argv[4]
+  output: process.argv[4]
 };
 
 let sourceFile = ts.createSourceFile(commandArgs.typeFile, fs.readFileSync(commandArgs.typeFile).toString(), ts.ScriptTarget.ES6, /*setParentNodes */ true);
 
 const generateUtils = () => {
-  const utils = `
+  const oldWay = `
 var createComponent = function(componentName, props, events) {
   var bindings = {};
   props.forEach(function(p) {
@@ -50,8 +50,49 @@ var createComponent = function(componentName, props, events) {
     }
   }
 }
+  `;
+
+  const utils = `
+var createDirective = function(componentName, props, events) {
+  var cap = x => x.substr(0, 1).toUpperCase() + x.substring(1);
+  var decap = x => x.substr(0, 1).toLowerCase() + x.substring(1);
+  var bindings = {};
+  props.forEach(function(p) {
+    bindings['prop' + cap(p)] = '<'
+  });
+  events.forEach(function(e) {
+    bindings['prop' + cap(e)] = '&'
+  });
+  return function() {
+    return {
+      restrict: 'E',
+      replace: false,
+      //scope: false,
+      scope: bindings,
+      bindToController: true,
+      controller: ['$element', '$scope', function($element, $scope) {
+        var self = this;
+        var wc = $element[0];
+
+        this.$onChanges = function(c) {
+          console.log('Changes', c);
+          for(let i in c) {
+            const propName = decap(i.substr(4));
+            wc[propName] = c[i].currentValue;
+          }
+        }
+        events.forEach(function(en) {
+          $element.on(en, function(e) {
+            return self['prop' + cap(en)]({ $event: e });
+          });
+        });
+      }],
+    }
+  }
+};
+
   `
-  console.log(utils);
+  return utils;
 }
 
 const generateAngularComponent = (classNode) => {
@@ -60,7 +101,7 @@ const generateAngularComponent = (classNode) => {
   // Convert MyComponent into my-component
   const classNameParts = className.match(/[A-Z][a-z]+/g)
   const componentName = classNameParts.map(x => x.toLowerCase()).join('-');
-  const angularComponentName = commandArgs.angularComponentPrefix + className.slice();
+  const angularComponentName = className.substr(0, 1).toLowerCase() + className.substr(1);
 
   const props = [];
   const events = [];
@@ -83,26 +124,32 @@ const generateAngularComponent = (classNode) => {
 
   const componentText = `
 angular.module('${commandArgs.angularModuleName}')
-.component('${angularComponentName}', createComponent('${componentName}',
+.directive('${angularComponentName}', createDirective('${componentName}',
   [${props.map(p => `'${p.name.getText()}'`).join(',')}],
   [${events.map(p => `'${p.name.getText()}'`).join(',')}]
 ))
 `;
 
-  console.log(componentText);
+  return componentText;
 };
 
-const walkAst = (root) => {
+const walkAst = (root, strings) => {
   p(root);
   function p(node) {
     switch(node.kind) {
       case ts.SyntaxKind.ClassDeclaration:
-        generateAngularComponent(node);
+        strings.push(generateAngularComponent(node));
         break;
     }
     ts.forEachChild(node, p);
   }
+  return strings;
 }
 
-generateUtils();
-walkAst(sourceFile);
+
+const outputString = [
+  generateUtils(),
+  walkAst(sourceFile, []).join('\n')
+].join('\n');
+
+fs.writeFileSync(commandArgs.output, outputString); 
