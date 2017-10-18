@@ -28,8 +28,9 @@ var createComponent = function(componentName, props, events) {
     bindings[e] = '&'
   });
   return {
-    template: \`<\$\{componentName\}></\$\{componentName\}>\`,
+    template: \`<\$\{componentName\} ng-transclude></\$\{componentName\}>\`,
     bindings: bindings,
+    transclude: true,
     controller: function($element) {
       var self = this;
       var e = angular.element($element.children()[0]);
