@@ -17,6 +17,42 @@ const commandArgs = {
 
 let sourceFile = ts.createSourceFile(commandArgs.typeFile, fs.readFileSync(commandArgs.typeFile).toString(), ts.ScriptTarget.ES6, /*setParentNodes */ true);
 
+const generateUtils = () => {
+  const utils = `
+var createComponent = function(componentName, props, events) {
+  var bindings = {};
+  props.forEach(function(p) {
+    bindings[p] = '<'
+  });
+  events.forEach(function(e) {
+    bindings[e] = '&'
+  });
+  return {
+    template: \`<\$\{componentName\}></\$\{componentName\}>\`,
+    bindings: bindings,
+    controller: function($element) {
+      var self = this;
+      var e = angular.element($element.children()[0]);
+      events.forEach(function(en) {
+        e.on(en, function(e) {
+          return self[en]();
+        })
+      });
+
+      // Update props on component
+      // from Angular bindings changes
+      this.$onChanges = function(c) {
+        for(let i in c) {
+          e[0][i] = c[i].currentValue;
+        }
+      }
+    }
+  }
+}
+  `
+  console.log(utils);
+}
+
 const generateAngularComponent = (classNode) => {
   const className = classNode.name.getText();
 
@@ -46,30 +82,10 @@ const generateAngularComponent = (classNode) => {
 
   const componentText = `
 angular.module('${commandArgs.angularModuleName}')
-.component('${angularComponentName}', {
-  template: '<${componentName}></${componentName}>',
-  bindings: {
-${props.map(p => `    '${p.name.getText()}': '<',`).join('\n')}
-${events.map(p => `    '${p.name.getText()}': '&',`).join('\n')}
-  },
-  controller: function($element) {
-    var self = this;
-    const e = angular.element($element.children()[0]);
-    ${events.map(p => `
-    e.on('${p.name.getText()}', function(e) {
-      return self.${p.name.getText()}();
-    });
-
-    `)}
-    // Update props on component
-    // from Angular bindings changes
-    this.$onChanges = function(c) {
-      for(let i in c) {
-        e[0][i] = c[i].currentValue;
-      }
-    }
-  }
-})
+.component('${angularComponentName}', createComponent('${componentName}',
+  [${props.map(p => `'${p.name.getText()}'`).join(',')}],
+  [${events.map(p => `'${p.name.getText()}'`).join(',')}]
+))
 `;
 
   console.log(componentText);
@@ -87,4 +103,5 @@ const walkAst = (root) => {
   }
 }
 
+generateUtils();
 walkAst(sourceFile);
